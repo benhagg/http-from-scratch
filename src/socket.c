@@ -7,6 +7,8 @@
 #include <arpa/inet.h>  // For IP address conversion functions (htons, inet_pton)
 #include <netdb.h>
 
+#include <utils.h>
+
 int create_server_socket(int port){
 
     // INIT SOCKET FILE DESCRIPTOR
@@ -29,10 +31,7 @@ int create_server_socket(int port){
     // BIND TO PORT
     // cast address as a sockaddr type, tell bind how many bytes the ipv4 address will be.
     int bind_result = bind(server_fd, (struct sockaddr *)&address, sizeof(address));
-    if (bind_result < 0){
-        perror("bind failed");
-        exit(EXIT_FAILURE);
-    }
+    handle_error(bind_result, "bind failed");
 
     // START LISTENING FOR INCOMING CONNECTIONS
     // note: this server is single threaded meaning it can only handle one connection at once. 
@@ -45,6 +44,8 @@ int create_server_socket(int port){
         exit(EXIT_FAILURE);
     }
 
+    printf("server socket opened");
+
     return server_fd;
 }
 
@@ -52,10 +53,7 @@ int connect_to_server(const char *hostname, int port){
     // INIT SOCKET FILE DESCRIPTOR
     // structurally identical to the one in create_server_socket
     int client_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (client_fd < 0) {
-        perror("socket failed");
-        exit(EXIT_FAILURE);
-    }
+    handle_error(client_fd, "socket failed");
 
     // CONFIGURE ADDRESS STRUCT
     struct sockaddr_in server_addr;
@@ -63,10 +61,8 @@ int connect_to_server(const char *hostname, int port){
     server_addr.sin_port = htons(port); // convert from little-endian (how it is stored in memory) to big-endian (how it is used in network addressing)
     struct addrinfo *res;
     int status = getaddrinfo(hostname, "8080", NULL, &res); // getaddrinfo abstracts away the sockaddr struct. but i am just using it to pull the IPV4 addr from the docker compose dns and use the sockaddr struct.
-    if (status < 0){
-        perror("failed to resolve hostname");
-        exit(EXIT_FAILURE);
-    }
+    handle_error(status, "failed to resolve hostname");
+
     // Cast res from sockaddr to sockaddr_in, then copy the .sin_addr struct
     struct sockaddr_in *temp_ipv4 = (struct sockaddr_in *)res->ai_addr;
     server_addr.sin_addr = temp_ipv4->sin_addr;
@@ -79,5 +75,8 @@ int connect_to_server(const char *hostname, int port){
         close(client_fd);
         exit(EXIT_FAILURE);
     }
+
+    printf("client socket connected to server");
+
     return 1;
 }
