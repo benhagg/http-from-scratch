@@ -1,0 +1,18 @@
+services:
+  server:
+    build: .
+    command: ./server
+    networks:
+      - net
+
+  client:
+    build: .
+    command: ./client
+    depends_on:
+      - server
+    networks:
+      - net
+
+networks:
+  net:
+    driver: bridge

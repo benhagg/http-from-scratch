@@ -1,0 +1,13 @@
+CC = gcc
+CFLAGS = -Wall -Wextra -O2 -Iinclude
+
+all: server client
+
+server: src/server.c src/socket.c src/protocol.c src/dns.c
+	$(CC) $(CFLAGS) $^ -o server
+
+client: src/client.c src/socket.c src/protocol.c src/dns.c
+	$(CC) $(CFLAGS) $^ -o client
+
+clean:
+	rm -f server client
