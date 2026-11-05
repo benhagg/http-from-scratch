@@ -3,7 +3,8 @@ services:
     build: .
     command: ./server
     networks:
-      - net
+      net:
+        ipv4_address: 172.28.0.10
 
   client:
     build: .
@@ -11,8 +12,12 @@ services:
     depends_on:
       - server
     networks:
-      - net
+      net:
+        ipv4_address: 172.28.0.11
 
 networks:
   net:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16

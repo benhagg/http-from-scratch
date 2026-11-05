@@ -1,4 +1,7 @@
-FROM gcc:latest
+FROM gcc:16.2.0
+
+# Install gdb and any other debugging tools you might need
+RUN apt-get update && apt-get install -y gdb iputils-ping dnsutils
 
 WORKDIR /app
 

@@ -5,7 +5,6 @@
 #include <sys/socket.h> // For socket(), bind(), listen(), accept(), connect()
 #include <netinet/in.h> // For struct sockaddr_in
 #include <arpa/inet.h>  // For IP address conversion functions (htons, inet_pton)
-#include <netdb.h>
 
 #include <utils.h>
 
@@ -59,19 +58,16 @@ int connect_to_server(const char *hostname, int port){
     struct sockaddr_in server_addr;
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(port); // convert from little-endian (how it is stored in memory) to big-endian (how it is used in network addressing)
-    struct addrinfo *res;
-    int status = getaddrinfo(hostname, "8080", NULL, &res); // getaddrinfo abstracts away the sockaddr struct. but i am just using it to pull the IPV4 addr from the docker compose dns and use the sockaddr struct.
-    handle_error(status, "failed to resolve hostname");
-
-    // Cast res from sockaddr to sockaddr_in, then copy the .sin_addr struct
-    struct sockaddr_in *temp_ipv4 = (struct sockaddr_in *)res->ai_addr;
-    server_addr.sin_addr = temp_ipv4->sin_addr;
+    int status = inet_pton(AF_INET, hostname, &server_addr.sin_addr);
+    if (status != 1) {
+        fprintf(stderr, "invalid IPv4 address: %s\n", hostname);
+        exit(EXIT_FAILURE);
+    }
 
     // CONNECT TO SERVER
     int connect_result = connect(client_fd, (struct sockaddr *)&server_addr, sizeof(server_addr));
     if (connect_result < 0){
         perror("failed to connect to server");
-        freeaddrinfo(res);
         close(client_fd);
         exit(EXIT_FAILURE);
     }
