@@ -6,11 +6,27 @@
 #include <netinet/in.h> // For struct sockaddr_in
 #include <arpa/inet.h>  // For IP address conversion functions (htons, inet_pton)
 
+#include "socket.h"
 #include <utils.h>
 
 
-void send_message(int socket_fd, const char *message){
-    send(socket_fd, message, strlen(message), 0);
+int socket_send_all(int socket_fd, const char *message){
+    // send api does not guarentee that we send the whole message so we need to handle the cases it does not.
+    int total_len = strlen(message);
+    int sent = 0;
+    while (sent < total_len){
+        // try to send (total_len - send) starting at mem addr (message[0] + sent). retuns num bytes sent.
+        ssize_t send_status = send(socket_fd, message + sent, total_len - sent, 0);
+        if (send_status <= 0){
+            return -1;
+        }
+        sent = sent + send_status;
+    }
+    return 0;
+}
+
+ssize_t socket_receive_bytes(int socket_fd, void *buffer, size_t capacity){
+    return recv(socket_fd, buffer, capacity, 0);
 }
 
 int create_server_socket(int port){
@@ -79,7 +95,7 @@ int connect_to_server(const char *hostname, int port){
     puts("client socket connected to server");
 
     // SEND MESSAGE TO SERVER
-    send_message(client_fd, "test");
+    socket_send_all(client_fd, "test");
     close(client_fd);
 
     return 1;
