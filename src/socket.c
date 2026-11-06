@@ -64,8 +64,6 @@ int create_server_socket(int port){
         exit(EXIT_FAILURE);
     }
 
-    printf("server socket opened");
-
     return server_fd;
 }
 
@@ -92,8 +90,6 @@ int connect_to_server(const char *hostname, int port){
         close(client_fd);
         exit(EXIT_FAILURE);
     }
-    puts("client socket connected to server");
-
     // SEND MESSAGE TO SERVER
     socket_send_all(client_fd, "test");
     close(client_fd);
