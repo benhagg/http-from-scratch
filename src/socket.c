@@ -10,13 +10,13 @@
 #include <utils.h>
 
 
-int socket_send_all(int socket_fd, const char *message){
+int socket_send_all(int socket_fd, const char *buffer){
     // send api does not guarentee that we send the whole message so we need to handle the cases it does not.
-    int total_len = strlen(message);
+    int total_len = strlen(buffer);
     int sent = 0;
     while (sent < total_len){
         // try to send (total_len - send) starting at mem addr (message[0] + sent). retuns num bytes sent.
-        ssize_t send_status = send(socket_fd, message + sent, total_len - sent, 0);
+        ssize_t send_status = send(socket_fd, buffer + sent, total_len - sent, 0);
         if (send_status <= 0){
             return -1;
         }
@@ -90,9 +90,6 @@ int connect_to_server(const char *hostname, int port){
         close(client_fd);
         exit(EXIT_FAILURE);
     }
-    // SEND MESSAGE TO SERVER
-    socket_send_all(client_fd, "test");
-    close(client_fd);
-
-    return 1;
+    
+    return client_fd;
 }
