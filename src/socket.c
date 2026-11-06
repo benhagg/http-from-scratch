@@ -72,7 +72,8 @@ int connect_to_server(const char *hostname, int port){
         exit(EXIT_FAILURE);
     }
 
-    printf("client socket connected to server");
+    puts("client socket connected to server");
+    close(client_fd);
 
     return 1;
 }
