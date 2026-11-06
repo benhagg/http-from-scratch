@@ -8,6 +8,11 @@
 
 #include <utils.h>
 
+
+void send_message(int socket_fd, const char *message){
+    send(socket_fd, message, strlen(message), 0);
+}
+
 int create_server_socket(int port){
 
     // INIT SOCKET FILE DESCRIPTOR
@@ -71,8 +76,10 @@ int connect_to_server(const char *hostname, int port){
         close(client_fd);
         exit(EXIT_FAILURE);
     }
-
     puts("client socket connected to server");
+
+    // SEND MESSAGE TO SERVER
+    send_message(client_fd, "test");
     close(client_fd);
 
     return 1;

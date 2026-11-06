@@ -17,10 +17,13 @@ int main(void) {
             close(server_fd);
             return 1;
         }
-        puts("accepted client connection");
 
         while((recv_result = recv(client_fd, buffer, sizeof(buffer), 0)) > 0){
-            if (recv_result == 0){
+            if(recv_result > 0){
+                buffer[recv_result] = '\0';
+                printf("Recieved: %s\n", buffer);
+                fflush(stdout);
+            }else if (recv_result == 0){
                 puts("client closed connection");
             }else{
                 perror("recv failed");
