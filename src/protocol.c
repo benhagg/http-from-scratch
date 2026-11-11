@@ -58,59 +58,69 @@ int serialize(char buffer[], size_t buffer_size, const HttpRequest *request){
 
 
 int deserialize(char *buffer, HttpRequest *req){
-    // 1. isolate the first line of the request which contains the method, path, and version
-    char *line = strtok(buffer, "\r\n");
-    if (line) {
-        char *method   = strtok(line, " "); // Resets to parse line
-        char *path     = strtok(NULL, " ");
-        // char *version  = strtok(NULL, " "); // version unused for now
-        req->method = method;
-        req->path = path;
-    }
-
-    // 2. Isolate the body first by finding the blank line separator (\r\n\r\n)
-    // we do this becuase the input string to strtok will modify the original string and we want to keep the body intact for later use.
+    // 1. Isolate the body first by finding the blank line separator (\r\n\r\n)
     char *body_ptr = strstr(buffer, "\r\n\r\n");
     if (body_ptr != NULL) {
-        *body_ptr = '\0';          // terminate the header section.
+        body_ptr += 2; // Move past the first "\r\n" separator
     }else{
         perror("no request body found");
         return -1;
     }
 
+    // 2. parse the first line of the request which contains the method, path, and version
+    char *method_end = strstr(buffer, " ");
+    char *path_end = strstr(method_end + 1, " ");
+    char *line_end = strstr(buffer, "\r\n");
+    if (!line_end || !method_end || !path_end ||
+        method_end >= line_end || path_end >= line_end) {
+        return -1;
+    }
+    // terminate all the strings so we can use them as C strings
+    *method_end = '\0';
+    *path_end = '\0';
+    *line_end = '\0';
+    // we can now safely assign those strings to the HttpRequest struct becuase they had been terminated above
+    req->method = buffer;
+    req->path = method_end + 1;
+    
+    
+    char *line_start = line_end + 2;  // start after the request line's CRLF
+    size_t content_length = 0; // Initialize content_length to 0
     // 3. iterate over the remaining lines to extract headers
-    size_t content_length = 0; // Initialize content_length to NULL
-    while ((line = strtok(NULL, "\r\n")) != NULL) {
-        if (strncmp(line, "Host: ", 6) == 0) { // check that first 6 is exactly "Host: "
-            char *host = line + 6; // Skips "Host: " and sets host equal to the rest of the line (until the \0 delim)
-            req->host = strdup(host);
+    while(line_start < body_ptr){
+        line_end = strstr(line_start, "\r\n");
+        if (!line_end) {
+            perror("Malformed request: no CRLF found");
+            return -1; // Malformed request, no CRLF found
+        }
+        *line_end = '\0'; // null terminate so we can directly assign the string to the struct
+        if (strncmp(line_start, "Host: ", 6) == 0) { // check that first 6 is exactly "Host: "
+            char *host = line_start + 6; // Skips "Host: " and sets host equal to the rest of the line (until the \0 delim)
+            req->host = host;
         } 
-        else if (strncmp(line, "Content-Type: ", 14) == 0) {
-            char *content_type = line + 14;
-            req->content_type = strdup(content_type);
+        else if (strncmp(line_start, "Content-Type: ", 14) == 0) {
+            char *content_type = line_start + 14;
+            req->content_type = content_type;
         }
-        else if (strncmp(line, "Content-Length: ", 16) == 0) {
-            content_length = strtoul(line + 16, NULL, 10);
+        else if (strncmp(line_start, "Content-Length: ", 16) == 0) {
+            content_length = strtoul(line_start + 16, NULL, 10); //strtoul string to unsigned long (arg 10 means base)
         }
-        else if(strncmp(line, "Connection: ", 12) == 0) {
-            char *connection = line + 12;
-            req->connection = strdup(connection);
+        else if(strncmp(line_start, "Connection: ", 12) == 0) {
+            char *connection = line_start + 12;
+            req->connection = connection;
         }
+
+        line_start = line_end + 2; // Move to the start of the next line
     }
     // 4. pull the request body
     // we already check that body_ptr is not NULL
     if(content_length != 0){
         // Copy the exact number of bytes specified by Content-Length into req->body
-        char *body_start = body_ptr + 4; // Move past the "\r\n\r\n" separator
-        memcpy(req->body, body_start, content_length);
-
-        // Manually ensure it's safely null-terminated for string printing/parsing
-        req->body[content_length] = '\0';
-    }else{
-        perror("Content-Length header not found, cannot extract body");
-        return -1;
+        body_ptr += 2; // Move past the second "\r\n" separator (we move past the first one in step one of this function)
+        body_ptr[content_length] = '\0'; // Null-terminate the body string
+        
+        req->body = body_ptr;
     }
-
 
     return 1;
 }

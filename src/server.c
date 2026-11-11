@@ -22,10 +22,11 @@ int main(void) {
         while((recv_result = recv(client_fd, buffer, sizeof(buffer), 0)) > 0){
             if(recv_result > 0){
                 buffer[recv_result] = '\0';
-                printf("Recieved: %s\n", buffer);
-                fflush(stdout);
                 HttpRequest req = {0};
                 deserialize(buffer, &req);
+                puts("Deserialized HTTP request body (and the rest of the request too):");
+                puts(req.body);
+                fflush(stdout);
             }else if (recv_result == 0){
                 puts("client closed connection");
             }else{
