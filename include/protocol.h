@@ -12,7 +12,8 @@ typedef struct {
     const char *path; //path to the resource
     const char *host; //hostname or ip and port
     const char *content_type; //type of the body
-    const char *body;
+    const char *connection;
+    char *body;
 } HttpRequest;
 
 // Serializes one HTTP/1.1 request into buffer. Returns byte count, or -1 on error.
@@ -31,6 +32,6 @@ int serialize(char buffer[], size_t buffer_size, const HttpRequest *request);
 // Returns 1 when a message is received, 0 if the peer closes before a message,
 // or -1 on error (including a message that exceeds the buffer).
 
-// int deserialize(const HttpRequest *request);
+int deserialize(char *buffer, HttpRequest *req);
 
 #endif

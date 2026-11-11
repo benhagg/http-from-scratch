@@ -3,6 +3,7 @@
 #include <sys/socket.h>
 
 #include "socket.h"
+#include "protocol.h"
 
 int main(void) {
     int port = 3000;
@@ -23,6 +24,8 @@ int main(void) {
                 buffer[recv_result] = '\0';
                 printf("Recieved: %s\n", buffer);
                 fflush(stdout);
+                HttpRequest req = {0};
+                deserialize(buffer, &req);
             }else if (recv_result == 0){
                 puts("client closed connection");
             }else{
