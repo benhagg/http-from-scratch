@@ -158,6 +158,10 @@ int dns_resolve(const char *dns_server_ip, const char *hostname,
     ssize_t response_size = recv(fd, buffer, sizeof buffer, 0);
     close(fd);
     if (response_size <= 0 || deserialize_dns(buffer, (size_t)response_size, &req) < 0 || req.answer_count != 1) return -1;
+    printf("DNS response: ID=%u Questions=%u Answers=%u Name=%s IP=%s\n",
+           req.id, req.question_count, req.answer_count,
+           req.question.name, req.answer.data);
+    fflush(stdout);
     strcpy(ip_buffer, req.answer.data);
     return 0;
 }
@@ -188,6 +192,10 @@ int main(void){
                 strcpy(req.answer.name, req.question.name);
                 strcpy(req.answer.data, ip);
             }
+            printf("DNS request: ID=%u Questions=%u Name=%s Answers=%u IP=%s\n",
+                   req.id, req.question_count, req.question.name,
+                   req.answer_count, req.answer.data);
+            fflush(stdout);
             int response_size = serialize_dns(buffer, sizeof buffer, &req);
             if (response_size > 0) send(client_fd, buffer, (size_t)response_size, 0);
         }
