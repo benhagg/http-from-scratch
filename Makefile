@@ -2,13 +2,16 @@ CC = gcc
 # CFLAGS = -Wall -Wextra -O2 -Iinclude
 CFLAGS = -Wall -Wextra -g -O0 -Iinclude
 
-all: server client
+all: server client dns
 
-server: src/server.c src/socket.c src/protocol.c src/dns.c src/utils.c
+server: src/server.c src/socket.c src/protocol.c src/utils.c
 	$(CC) $(CFLAGS) $^ -o server
 
 client: src/client.c src/socket.c src/protocol.c src/dns.c src/utils.c
-	$(CC) $(CFLAGS) $^ -o client
+	$(CC) $(CFLAGS) -DDNS_LIBRARY_ONLY $^ -o client
+
+dns: src/dns.c src/socket.c src/utils.c
+	$(CC) $(CFLAGS) $^ -o dns
 
 clean:
-	rm -f server client
+	rm -f server client dns

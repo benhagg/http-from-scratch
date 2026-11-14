@@ -45,6 +45,10 @@ int check_ownership(const dns_table *table, const char *ip);
 // Allocates the record array; returns 0 on success, -1 on failure.
 int dns_table_init(dns_table *table, size_t capacity);
 
+// Looks up a hostname through the custom DNS server at dns_server_ip.
+int dns_resolve(const char *dns_server_ip, const char *hostname,
+                char *ip_buffer, size_t ip_buffer_size);
+
 // deserialize dns request
 // Custom packet: ID, question count, answer count, then labeled names and IPv4 data.
 int deserialize_dns(const unsigned char *buffer, size_t buffer_len, DnsRequest *req);

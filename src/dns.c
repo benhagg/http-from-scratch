@@ -141,12 +141,35 @@ int serialize_dns(unsigned char *buffer, size_t buffer_size, const DnsRequest *r
     return (int)(position + 4); // return total number of bytes written to the buffer
 }
 
+
+// clean function to handle all of the dns internals. Take hostname and return ip address. removes the need for a client to handle the serialization and deserialization steps)
+int dns_resolve(const char *dns_server_ip, const char *hostname,
+                char *ip_buffer, size_t ip_buffer_size) {
+    DnsRequest req = {0};
+    req.id = 1; req.question_count = 1;
+    if (!dns_server_ip || !hostname || !ip_buffer || ip_buffer_size < MAX_IP_STR) return -1;
+    if (strlen(hostname) >= sizeof req.question.name) return -1;
+    strcpy(req.question.name, hostname);
+    unsigned char buffer[512];
+    int request_size = serialize_dns(buffer, sizeof buffer, &req);
+    if (request_size < 0) return -1;
+    int fd = connect_to_server(dns_server_ip, 53);
+    if (send(fd, buffer, (size_t)request_size, 0) != request_size) { close(fd); return -1; }
+    ssize_t response_size = recv(fd, buffer, sizeof buffer, 0);
+    close(fd);
+    if (response_size <= 0 || deserialize_dns(buffer, (size_t)response_size, &req) < 0 || req.answer_count != 1) return -1;
+    strcpy(ip_buffer, req.answer.data);
+    return 0;
+}
+
+#ifndef DNS_LIBRARY_ONLY
 int main(void){
     dns_table ip_table = {0};
     if (dns_table_init(&ip_table, 2) < 0) {
         perror("dns table initialization failed");
         return 1;
     }
+    register_ip(&ip_table, "server", "172.28.0.10");
     int dns_fd = create_server_socket(53); // create socket on port 53 for dns server
     unsigned char buffer[512];
     ssize_t recv_result;
@@ -171,3 +194,4 @@ int main(void){
         close(client_fd);
     }
 }
+#endif

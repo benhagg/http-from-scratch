@@ -1,14 +1,17 @@
 #include <stdio.h>
 #include <unistd.h>
-#include <stdio.h>
+#include <stdlib.h>
 
 #include "socket.h"
 #include "protocol.h"
+#include "dns.h"
 #include "utils.h"
 
 
 int main(void) {
-    const char *server_ip = "172.28.0.10";
+    const char *dns_server_ip = getenv("DNS_SERVER_IP");
+    char server_ip[MAX_IP_STR];
+    if (dns_resolve(dns_server_ip, "server", server_ip, sizeof server_ip) < 0) return 1;
     int port = 3000;
     for(int i=0; i<2; i++){
         int client_socket = connect_to_server(server_ip, port); // this returns the socket

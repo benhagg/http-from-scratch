@@ -1,7 +1,16 @@
 services:
+  dns:
+    build: .
+    command: ./dns
+    networks:
+      net:
+        ipv4_address: 172.28.0.12
+
   server:
     build: .
     command: ./server
+    depends_on:
+      - dns
     networks:
       net:
         ipv4_address: 172.28.0.10
@@ -9,8 +18,11 @@ services:
   client:
     build: .
     command: ./client
+    environment:
+      DNS_SERVER_IP: "172.28.0.12"
     depends_on:
       - server
+      - dns
     networks:
       net:
         ipv4_address: 172.28.0.11
