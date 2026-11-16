@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <sys/socket.h>
 
 #include "socket.h"
 #include "http.h"
@@ -34,7 +35,15 @@ int main(void) {
 
         // send the http request to server via the socket.
         socket_send_all(client_socket, buffer);
-        fflush(stdout);
+        shutdown(client_socket, SHUT_WR);
+        char response_buffer[1024];
+        ssize_t response_size;
+        while ((response_size = recv(client_socket, response_buffer,
+                                     sizeof(response_buffer) - 1, 0)) > 0) {
+            response_buffer[response_size] = '\0';
+            printf("%s", response_buffer);
+        }
+        close(client_socket);
         sleep(1);
     }
     return 0;

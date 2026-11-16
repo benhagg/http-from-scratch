@@ -36,6 +36,18 @@ int main(void) {
                 perror("recv failed");
             }
         }
+
+        HttpResponse response = {0};
+        response.status_code = 200;
+        response.reason_phrase = "OK";
+        response.content_type = "text/plain";
+        response.body = "this is a response from the server";
+        char response_buffer[1024];
+        if (response_serialize(response_buffer, sizeof(response_buffer), &response) < 0 ||
+            socket_send_all(client_fd, response_buffer) < 0) {
+            perror("failed to send HTTP response");
+        }
+        close(client_fd);
     }
     close(server_fd);
     return 0;
