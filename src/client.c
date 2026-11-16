@@ -3,7 +3,7 @@
 #include <stdlib.h>
 
 #include "socket.h"
-#include "protocol.h"
+#include "http.h"
 #include "dns.h"
 #include "utils.h"
 
@@ -28,7 +28,7 @@ int main(void) {
 
         // init the buffer. serialize will fill this buffer.
         char buffer[PROTOCOL_MAX_MESSAGE_SIZE + 1];
-        if ((serialize(buffer, sizeof(buffer), &request)) < 0){
+        if ((request_serialize(buffer, sizeof(buffer), &request)) < 0){
             return -1;
         }
 

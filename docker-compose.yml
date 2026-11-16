@@ -9,6 +9,8 @@ services:
   server:
     build: .
     command: ./server
+    environment:
+      DNS_SERVER_IP: "172.28.0.12"
     depends_on:
       - dns
     networks:

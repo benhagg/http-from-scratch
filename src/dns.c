@@ -1,5 +1,5 @@
 #include "dns.h"
-#include "protocol.h"
+#include "http.h"
 #include "socket.h"
 #include <arpa/inet.h>
 #include <stdio.h>
@@ -166,7 +166,7 @@ int dns_resolve(const char *dns_server_ip, const char *hostname,
     return 0;
 }
 
-#ifndef DNS_LIBRARY_ONLY
+#ifndef DNS_LIBRARY_ONLY //if DNS_LIBRARY_ONLY is defined, we will not compile the main function for the dns server. This allows us to use the dns functions in other programs without running the dns server code.
 int main(void){
     dns_table ip_table = {0};
     if (dns_table_init(&ip_table, 2) < 0) {
@@ -174,6 +174,7 @@ int main(void){
         return 1;
     }
     register_ip(&ip_table, "server", "172.28.0.10");
+    register_ip(&ip_table, "client", "172.28.0.12"); //hardcoded ip for now. we will make dynamic in future. ##FIXME
     int dns_fd = create_server_socket(53); // create socket on port 53 for dns server
     unsigned char buffer[512];
     ssize_t recv_result;
