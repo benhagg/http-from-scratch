@@ -7,34 +7,35 @@
 #include <stdint.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
 #include <unistd.h>
 
-
-int check_ownership(const dns_table *table, const char *ip) {
-    if (table == NULL || table->records == NULL || ip == NULL) return 0;
-    for (size_t i = 0; i < table->count; i++)
-        if (strcmp(table->records[i].ip, ip) == 0) return 0;
-    return 1;
-}
-
-int register_ip(dns_table *table, const char *hostname, const char *ip) {
+int register_ip(DnsTable *table, const char *hostname, const char *ip) {
     if (table == NULL || table->records == NULL || hostname == NULL || ip == NULL) return -1;
     if (strlen(hostname) >= MAX_DNS_NAME || strlen(ip) >= MAX_IP_STR) return -1;
-    if (table->count >= table->capacity || !check_ownership(table, ip)) return -1;
+    // iterate over the records and see if the hostname is already registered. If it is and the ip is the same, return 0.
+    for (size_t i = 0; i < table->count; i++) {
+        if (strcmp(table->records[i].hostname, hostname) == 0) { // check if hostname already registered
+            if (strcmp(table->records[i].ip, ip) == 0) return 0; // check if ip already registered for this hostname. if so return 0
+            strcpy(table->records[i].ip, ip); // if we are on the correct hostname entry, update the ip addr in the table.
+            return 0;
+        }
+    }
+    if (table->count >= table->capacity) return -1;
     strcpy(table->records[table->count].hostname, hostname);
     strcpy(table->records[table->count].ip, ip);
     table->count++;
     return 0;
 }
 
-const char *lookup(const dns_table *table, const char *hostname) {
+const char *lookup(const DnsTable *table, const char *hostname) {
     if (table == NULL || table->records == NULL || hostname == NULL) return NULL;
     for (size_t i = 0; i < table->count; i++)
         if (strcmp(table->records[i].hostname, hostname) == 0) return table->records[i].ip;
     return NULL;
 }
 
-int dns_table_init(struct dns_table *table, size_t capacity){
+int dns_table_init(DnsTable *table, size_t capacity){
     if (table == NULL || capacity == 0) return -1;
     table->records = NULL;
     table->count = 0;
@@ -67,6 +68,7 @@ static int decode_name(const unsigned char *buffer, size_t buffer_len,
  * Example custom serialized response:
  * Header:
  *   ID:        0x1234
+ *   DNS_REGISTER: false (lookup response)
  *   Questions: 1
  *   Answers:   1
  *
@@ -79,12 +81,14 @@ static int decode_name(const unsigned char *buffer, size_t buffer_len,
  *
  */
 int deserialize_dns(const unsigned char *buffer, size_t buffer_len, DnsRequest *req){
-    if (!buffer || !req || buffer_len < 7) return -1;
+    if (!buffer || !req || buffer_len < 8) return -1;
     // Shift the first byte left 8 bits, then combine it with the second byte. (convert big-endian back to little-endian)
     req->id = (buffer[0] << 8) | buffer[1];
-    req->question_count = (buffer[2] << 8) | buffer[3];
-    req->answer_count = (buffer[4] << 8) | buffer[5];
-    size_t position = 6;
+    if (buffer[2] > 1) return -1;
+    req->DNS_REGISTER = buffer[2] != 0;
+    req->question_count = (buffer[3] << 8) | buffer[4];
+    req->answer_count = (buffer[5] << 8) | buffer[6];
+    size_t position = 7;
     if (req->question_count != 1 || decode_name(buffer, buffer_len, &position, req->question.name) < 0) return -1;
     req->answer.data[0] = '\0';
     if (req->answer_count == 0) return position == buffer_len ? 0 : -1;
@@ -122,11 +126,13 @@ static size_t encode_name(unsigned char *buffer, size_t buffer_size, const char 
 }
 
 int serialize_dns(unsigned char *buffer, size_t buffer_size, const DnsRequest *req) {
-    if (!buffer || !req || buffer_size < 6 || req->question_count != 1 || req->answer_count > 1) return -1;
-    size_t position = 6;
+    if (!buffer || !req || buffer_size < 7 || req->question_count != 1 || req->answer_count > 1) return -1;
+    size_t position = 7;
     // real DNS uses big-endian for numeric fields. So we will too (write_u16 writes in big-endian)
-    write_u16(buffer, req->id); write_u16(buffer + 2, req->question_count); // write question count
-    write_u16(buffer + 4, req->answer_count); // write answer count
+    write_u16(buffer, req->id);
+    buffer[2] = req->DNS_REGISTER ? 1 : 0;
+    write_u16(buffer + 3, req->question_count); // write question count
+    write_u16(buffer + 5, req->answer_count); // write answer count
     size_t name_size = encode_name(buffer + position, buffer_size - position, req->question.name);
     if (!name_size) return -1;
     position += name_size;
@@ -146,7 +152,7 @@ int serialize_dns(unsigned char *buffer, size_t buffer_size, const DnsRequest *r
 int dns_resolve(const char *dns_server_ip, const char *hostname,
                 char *ip_buffer, size_t ip_buffer_size) {
     DnsRequest req = {0};
-    req.id = 1; req.question_count = 1;
+    req.id = 1; req.DNS_REGISTER = false; req.question_count = 1;
     if (!dns_server_ip || !hostname || !ip_buffer || ip_buffer_size < MAX_IP_STR) return -1;
     if (strlen(hostname) >= sizeof req.question.name) return -1;
     strcpy(req.question.name, hostname);
@@ -168,7 +174,7 @@ int dns_resolve(const char *dns_server_ip, const char *hostname,
 
 #ifndef DNS_LIBRARY_ONLY //if DNS_LIBRARY_ONLY is defined, we will not compile the main function for the dns server. This allows us to use the dns functions in other programs without running the dns server code.
 int main(void){
-    dns_table ip_table = {0};
+    DnsTable ip_table = {0};
     if (dns_table_init(&ip_table, 2) < 0) {
         perror("dns table initialization failed");
         return 1;
@@ -187,14 +193,31 @@ int main(void){
         while ((recv_result = recv(client_fd, buffer, sizeof buffer, 0)) > 0) {
             DnsRequest req = {0};
             if (deserialize_dns(buffer, (size_t)recv_result, &req) < 0) continue;
-            const char *ip = lookup(&ip_table, req.question.name);
-            if (ip != NULL) {
-                req.answer_count = 1;
-                strcpy(req.answer.name, req.question.name);
-                strcpy(req.answer.data, ip);
+            if (!req.DNS_REGISTER) {
+                const char *ip = lookup(&ip_table, req.question.name);
+                if (ip != NULL) {
+                    req.answer_count = 1;
+                    strcpy(req.answer.name, req.question.name);
+                    strcpy(req.answer.data, ip);
+                }
+            } else { // if this is a registration request
+                struct sockaddr_in peer = {0}; // init to 0.0.0.0
+                socklen_t peer_size = sizeof peer;
+                char peer_ip[MAX_IP_STR];
+
+                // check several conditions for registration: answer_count must be 0, getpeername must succeed, inet_ntop must succeed, and register_ip must succeed. If all conditions are met, set registered to true.
+                int registered = req.answer_count == 0 &&
+                    getpeername(client_fd, (struct sockaddr *)&peer, &peer_size) == 0 && // pull the ip addr of the client that sent the request.
+                    inet_ntop(AF_INET, &peer.sin_addr, peer_ip, sizeof peer_ip) != NULL && // converts binary ipv4 addr to string format.
+                    register_ip(&ip_table, req.question.name, peer_ip) == 0; // register the ip address
+                req.answer_count = registered ? 1 : 0;
+                if (registered) {
+                    strcpy(req.answer.name, req.question.name);
+                    strcpy(req.answer.data, peer_ip);
+                }
             }
-            printf("DNS request: ID=%u Questions=%u Name=%s Answers=%u IP=%s\n",
-                   req.id, req.question_count, req.question.name,
+            printf("DNS request: ID=%u DNS_REGISTER=%s Questions=%u Name=%s Answers=%u IP=%s\n",
+                   req.id, req.DNS_REGISTER ? "true" : "false", req.question_count, req.question.name,
                    req.answer_count, req.answer.data);
             fflush(stdout);
             int response_size = serialize_dns(buffer, sizeof buffer, &req);
