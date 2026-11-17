@@ -38,7 +38,6 @@ int main(void) {
                 buffer[recv_result] = '\0';
                 HttpRequest req = {0};
                 request_deserialize(buffer, &req);
-                printf("HTTP body: %s\n", req.body);
                 fflush(stdout);
             }else if (recv_result == 0){
                 puts("client closed connection");

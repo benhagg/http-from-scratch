@@ -15,22 +15,20 @@ int main(void) {
     int attempt;
     for (attempt = 0; attempt < 10; attempt++) {
         if (dns_register(dns_server_ip, "client") == 0) break;
-        puts("could not register with DNS yet; retrying");
         if (attempt < 9) sleep(1);
     }
     if (attempt == 10) {
-        fprintf(stderr, "DNS registration timed out\n");
+        perror("DNS registration timed out\n");
         return 1;
     }
     char server_ip[MAX_IP_STR];
     for (attempt = 0; attempt < 10; attempt++) {
         if (dns_resolve(dns_server_ip, "server", server_ip, sizeof server_ip) == 0)
             break;
-        puts("server is not registered yet; retrying DNS lookup");
         if (attempt < 9) sleep(1);
     }
     if (attempt == 10) {
-        fprintf(stderr, "DNS lookup timed out\n");
+        perror("DNS lookup timed out\n");
         return 1;
     }
     int port = 3000;
@@ -61,8 +59,14 @@ int main(void) {
         while ((response_size = recv(client_socket, response_buffer,
                                      sizeof(response_buffer) - 1, 0)) > 0) {
             response_buffer[response_size] = '\0';
-            printf("%s", response_buffer);
         }
+        HttpResponse res = {0};
+        if (response_deserialize(response_buffer, &res) < 0) {
+            fprintf(stderr, "Failed to deserialize HTTP response\n");
+            close(client_socket);
+            return -1;
+        }
+        printf("%s %s%s\t %d %s\n", request.method, "server", request.path, res.status_code, res.reason_phrase);
         close(client_socket);
         sleep(1);
     }
