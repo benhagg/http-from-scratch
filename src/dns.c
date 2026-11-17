@@ -10,9 +10,32 @@
 #include <netinet/in.h>
 #include <unistd.h>
 
+// this function doubles the existing capacity up to a max of MAX_DNS_RECORDS
+// return values:
+// -1: error
+// 0: no need to increase capacity
+// 1: capacity increased
+int dns_table_ensure_capacity(DnsTable *table){
+    if (table == NULL) return -1;
+    if (table->capacity >= MAX_DNS_RECORDS) return -1;
+    if (table->count > table->capacity) return -1;
+    // if we have space, no need to increase capacity
+    if (table->count < table->capacity) return 0;
+    // if we dont return above then increase capacity. double the capacity but do not exceed MAX_DNS_RECORDS
+    size_t new_capacity = table->capacity * 2;
+    if (new_capacity > MAX_DNS_RECORDS) new_capacity = MAX_DNS_RECORDS;
+    DnsRecord *new_records = realloc(table->records, new_capacity * sizeof *table->records); // realloc preserves existing records while reallocating space for new ones. sizeof *table.records is the byte size of one record (first record)
+    if (new_records == NULL) return -1;
+    table->records = new_records;
+    table->capacity = new_capacity;
+    printf("DNS table capacity increased to %zu\n", new_capacity);
+    return 1;
+}
+
 int register_ip(DnsTable *table, const char *hostname, const char *ip) {
     if (table == NULL || table->records == NULL || hostname == NULL || ip == NULL) return -1;
     if (strlen(hostname) >= MAX_DNS_NAME || strlen(ip) >= MAX_IP_STR) return -1;
+    if (dns_table_ensure_capacity(table)<0) return -1; //increase capacity if needed.
     // iterate over the records and see if the hostname is already registered. If it is and the ip is the same, return 0.
     for (size_t i = 0; i < table->count; i++) {
         if (strcmp(table->records[i].hostname, hostname) == 0) { // check if hostname already registered
@@ -181,6 +204,7 @@ int main(void){
     }
     register_ip(&ip_table, "server", "172.28.0.10");
     register_ip(&ip_table, "client", "172.28.0.12"); //hardcoded ip for now. we will make dynamic in future. ##FIXME
+    register_ip(&ip_table, "test", "172.28.0.13"); // this is added in so we can test the dynamic resizing of the dns table. we will remove this later. ##FIXME
     int dns_fd = create_server_socket(53); // create socket on port 53 for dns server
     unsigned char buffer[512];
     ssize_t recv_result;
