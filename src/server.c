@@ -10,11 +10,21 @@
 int main(void) {
     int port = 3000;
     int server_fd = create_server_socket(port);
+    const char *dns_server_ip = getenv("DNS_SERVER_IP");
+    int attempt;
+    for (attempt = 0; attempt < 10; attempt++) {
+        if (dns_register(dns_server_ip, "server") == 0) break;
+        puts("could not register with DNS yet; retrying");
+        if (attempt < 9) sleep(1);
+    }
+    if (attempt == 10) {
+        fprintf(stderr, "DNS registration timed out\n");
+        close(server_fd);
+        return 1;
+    }
+
     char buffer[1024]; // we can recieve up to 1024 bytes
     int recv_result;
-    const char *dns_server_ip = getenv("DNS_SERVER_IP");
-    char client_ip[MAX_IP_STR];
-    if (dns_resolve(dns_server_ip, "client", client_ip, sizeof client_ip) < 0) return 1;
     for (;;){
         int client_fd = accept(server_fd, NULL, NULL);
         if (client_fd < 0) {

@@ -170,6 +170,27 @@ int serialize_dns(unsigned char *buffer, size_t buffer_size, const DnsRequest *r
     return (int)(position + 4); // return total number of bytes written to the buffer
 }
 
+// this abstracts the serialization and deserialization steps from the client. It takes a dns server ip and a dns request, serializes it, sends it to the server, receives the response, and deserializes it back into the request struct. Returns 0 on success, -1 on failure.
+static int dns_exchange(const char *dns_server_ip, DnsRequest *req) {
+    unsigned char buffer[512];
+    int request_size = serialize_dns(buffer, sizeof buffer, req);
+    if (request_size < 0) return -1;
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0) return -1;
+    struct sockaddr_in dns_address = {0};
+    dns_address.sin_family = AF_INET;
+    dns_address.sin_port = htons(53);
+    if (inet_pton(AF_INET, dns_server_ip, &dns_address.sin_addr) != 1 ||
+        connect(fd, (struct sockaddr *)&dns_address, sizeof dns_address) < 0) {
+        close(fd);
+        return -1;
+    }
+    if (send(fd, buffer, (size_t)request_size, 0) != request_size) { close(fd); return -1; }
+    ssize_t response_size = recv(fd, buffer, sizeof buffer, 0);
+    close(fd);
+    if (response_size <= 0 || deserialize_dns(buffer, (size_t)response_size, req) < 0) return -1;
+    return 0;
+}
 
 // clean function to handle all of the dns internals. Take hostname and return ip address. removes the need for a client to handle the serialization and deserialization steps)
 int dns_resolve(const char *dns_server_ip, const char *hostname,
@@ -179,19 +200,21 @@ int dns_resolve(const char *dns_server_ip, const char *hostname,
     if (!dns_server_ip || !hostname || !ip_buffer || ip_buffer_size < MAX_IP_STR) return -1;
     if (strlen(hostname) >= sizeof req.question.name) return -1;
     strcpy(req.question.name, hostname);
-    unsigned char buffer[512];
-    int request_size = serialize_dns(buffer, sizeof buffer, &req);
-    if (request_size < 0) return -1;
-    int fd = connect_to_server(dns_server_ip, 53);
-    if (send(fd, buffer, (size_t)request_size, 0) != request_size) { close(fd); return -1; }
-    ssize_t response_size = recv(fd, buffer, sizeof buffer, 0);
-    close(fd);
-    if (response_size <= 0 || deserialize_dns(buffer, (size_t)response_size, &req) < 0 || req.answer_count != 1) return -1;
+    if (dns_exchange(dns_server_ip, &req) < 0 || req.answer_count != 1) return -1;
     printf("DNS response: ID=%u Questions=%u Answers=%u Name=%s IP=%s\n",
            req.id, req.question_count, req.answer_count,
            req.question.name, req.answer.data);
     fflush(stdout);
     strcpy(ip_buffer, req.answer.data);
+    return 0;
+}
+
+int dns_register(const char *dns_server_ip, const char *hostname) {
+    DnsRequest req = {0};
+    req.id = 1; req.DNS_REGISTER = true; req.question_count = 1;
+    if (!dns_server_ip || !hostname || strlen(hostname) >= sizeof req.question.name) return -1;
+    strcpy(req.question.name, hostname);
+    if (dns_exchange(dns_server_ip, &req) < 0 || req.answer_count != 1) return -1;
     return 0;
 }
 
@@ -202,9 +225,6 @@ int main(void){
         perror("dns table initialization failed");
         return 1;
     }
-    register_ip(&ip_table, "server", "172.28.0.10");
-    register_ip(&ip_table, "client", "172.28.0.12"); //hardcoded ip for now. we will make dynamic in future. ##FIXME
-    register_ip(&ip_table, "test", "172.28.0.13"); // this is added in so we can test the dynamic resizing of the dns table. we will remove this later. ##FIXME
     int dns_fd = create_server_socket(53); // create socket on port 53 for dns server
     unsigned char buffer[512];
     ssize_t recv_result;

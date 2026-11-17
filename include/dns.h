@@ -49,6 +49,9 @@ int dns_table_init(DnsTable *table, size_t capacity);
 int dns_resolve(const char *dns_server_ip, const char *hostname,
                 char *ip_buffer, size_t ip_buffer_size);
 
+// Registers this container's hostname; DNS learns its IP from the connection.
+int dns_register(const char *dns_server_ip, const char *hostname);
+
 // deserialize dns request
 // Custom packet: ID, question count, answer count, then labeled names and IPv4 data.
 // DNS_REGISTER is a flag byte between the ID and counts.

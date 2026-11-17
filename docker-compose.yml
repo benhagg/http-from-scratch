@@ -14,8 +14,7 @@ services:
     depends_on:
       - dns
     networks:
-      net:
-        ipv4_address: 172.28.0.10
+      - net
 
   client:
     build: .
@@ -26,8 +25,7 @@ services:
       - server
       - dns
     networks:
-      net:
-        ipv4_address: 172.28.0.11
+      - net
 
 networks:
   net:

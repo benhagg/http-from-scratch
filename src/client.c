@@ -11,8 +11,28 @@
 
 int main(void) {
     const char *dns_server_ip = getenv("DNS_SERVER_IP");
+    // try 10x at 1HZ to get the server ip addr from dns.
+    int attempt;
+    for (attempt = 0; attempt < 10; attempt++) {
+        if (dns_register(dns_server_ip, "client") == 0) break;
+        puts("could not register with DNS yet; retrying");
+        if (attempt < 9) sleep(1);
+    }
+    if (attempt == 10) {
+        fprintf(stderr, "DNS registration timed out\n");
+        return 1;
+    }
     char server_ip[MAX_IP_STR];
-    if (dns_resolve(dns_server_ip, "server", server_ip, sizeof server_ip) < 0) return 1;
+    for (attempt = 0; attempt < 10; attempt++) {
+        if (dns_resolve(dns_server_ip, "server", server_ip, sizeof server_ip) == 0)
+            break;
+        puts("server is not registered yet; retrying DNS lookup");
+        if (attempt < 9) sleep(1);
+    }
+    if (attempt == 10) {
+        fprintf(stderr, "DNS lookup timed out\n");
+        return 1;
+    }
     int port = 3000;
     for(int i=0; i<2; i++){
         int client_socket = connect_to_server(server_ip, port); // this returns the socket
